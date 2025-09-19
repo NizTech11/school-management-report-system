@@ -1,0 +1,29 @@
+SCHOOL LOGO SETUP INSTRUCTIONS
+===============================
+
+1. PREPARE YOUR LOGO:
+   - Save as PNG, JPEG, or GIF format
+   - Recommended size: 300x300 pixels
+   - Keep file size under 1MB
+
+2. SAVE LOGO FILE:
+   - Copy your logo to: c:\Users\abeik\OneDrive - Georgia Institute of Technology\Desktop\sytems students\assets\logos
+   - Name it something like: school_logo.png
+
+3. CONFIGURE IN TEMPLATE EDITOR:
+   - Open Template Editor in your app
+   - Find "School Information" section
+   - Set "Logo File Path" to: c:\Users\abeik\OneDrive - Georgia Institute of Technology\Desktop\sytems students\assets\logos/your_logo_name.png
+   - Enable "Show Logo in Reports"
+   - Click "Save Configuration"
+
+4. TEST:
+   - Generate any report (student marks, class report, etc.)
+   - Your logo should appear at the top of the PDF
+
+TROUBLESHOOTING:
+- Logo not showing? Check the file path is correct
+- Logo too big/small? Adjust size settings in Template Editor
+- File format issues? Try PNG format for best compatibility
+
+Current Template Editor URL: http://localhost:8501/10_Clean_Template_Editor

@@ -1,0 +1,6 @@
+# Example Logo Configuration (add to school_config.py)
+
+LOGO_PATH = "c:\Users\abeik\OneDrive - Georgia Institute of Technology\Desktop\sytems students\assets\logos\school_logo.png"
+LOGO_WIDTH = 70
+LOGO_HEIGHT = 70
+SHOW_LOGO = True

@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+.envrc
+
+# Streamlit
+.streamlit/auth.yaml
+
+# SQLite
+*.db
+
+# VS Code
+.vscode/

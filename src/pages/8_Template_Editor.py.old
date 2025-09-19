@@ -1,0 +1,517 @@
+"""
+Report Template Editor
+Web interface for customizing school report templates
+"""
+
+import streamlit as st
+import os
+import sys
+from pathlib import Path
+import tempfile
+from datetime import datetime
+
+# Ensure proper imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.rbac import is_logged_in, get_current_user, has_permission
+
+# Page configuration and authentication check
+st.set_page_config(page_title="Report Template Editor", page_icon="📝", layout="wide")
+
+# Authentication check
+if not is_logged_in():
+    st.error("🔐 Please log in to access this page.")
+    st.stop()
+
+user = get_current_user()
+if not user or not has_permission(user['role'], 'reports.templates.edit'):
+    st.error("🚫 You don't have permission to edit report templates.")
+    st.stop()
+
+def load_school_config():
+    """Load the current school configuration"""
+    try:
+        # Import the config dynamically to get latest changes
+        import importlib
+        import sys
+        
+        # Add config directory to path if not already there
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'config')
+        if config_path not in sys.path:
+            sys.path.insert(0, config_path)
+            
+        # Import or reload the config
+        if 'school_config' in sys.modules:
+            importlib.reload(sys.modules['school_config'])
+        
+        from config.school_config import SchoolConfig
+        return SchoolConfig
+    except Exception as e:
+        st.error(f"Error loading configuration: {str(e)}")
+        return None
+
+def save_school_config(config_data):
+    """Save updated configuration to file with proper Unicode handling"""
+    try:
+        config_file_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'school_config.py')
+        
+        # Ensure the config directory exists
+        config_dir = os.path.dirname(config_file_path)
+        os.makedirs(config_dir, exist_ok=True)
+        
+        # Read the current file with UTF-8 encoding
+        try:
+            with open(config_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except FileNotFoundError:
+            st.error(f"Configuration file not found at: {config_file_path}")
+            return False
+        except UnicodeDecodeError:
+            # Try reading with different encodings if UTF-8 fails
+            try:
+                with open(config_file_path, 'r', encoding='latin1') as f:
+                    content = f.read()
+                st.warning("Configuration file was read with latin1 encoding. Will save as UTF-8.")
+            except Exception as e:
+                st.error(f"Could not read configuration file with any encoding: {str(e)}")
+                return False
+        
+        # Escape special characters in strings to prevent issues
+        def escape_string(s):
+            """Escape special characters in string values"""
+            if not isinstance(s, str):
+                return s
+            return s.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
+        
+        # Update the configuration values in the file content
+        updated_content = content
+        
+        # Update basic school information with escaped strings
+        updated_content = updated_content.replace(
+            f'SCHOOL_NAME = "{escape_string(config_data["old_school_name"])}"',
+            f'SCHOOL_NAME = "{escape_string(config_data["school_name"])}"'
+        )
+        updated_content = updated_content.replace(
+            f'SCHOOL_SUBTITLE = "{escape_string(config_data["old_subtitle"])}"',
+            f'SCHOOL_SUBTITLE = "{escape_string(config_data["school_subtitle"])}"'
+        )
+        updated_content = updated_content.replace(
+            f'ADDRESS = "{escape_string(config_data["old_address"])}"',
+            f'ADDRESS = "{escape_string(config_data["address"])}"'
+        )
+        updated_content = updated_content.replace(
+            f'EMAIL = "{escape_string(config_data["old_email"])}"',
+            f'EMAIL = "{escape_string(config_data["email"])}"'
+        )
+        
+        # Update phone numbers with proper list handling
+        old_phones = str(config_data["old_phone_numbers"]).replace("'", '"')
+        new_phones = str(config_data["phone_numbers"]).replace("'", '"')
+        updated_content = updated_content.replace(
+            f'PHONE_NUMBERS = {old_phones}',
+            f'PHONE_NUMBERS = {new_phones}'
+        )
+        
+        # Update logo settings
+        updated_content = updated_content.replace(
+            f'LOGO_PATH = "{escape_string(config_data["old_logo_path"])}"',
+            f'LOGO_PATH = "{escape_string(config_data["logo_path"])}"'
+        )
+        updated_content = updated_content.replace(
+            f'SHOW_LOGO = {config_data["old_show_logo"]}',
+            f'SHOW_LOGO = {config_data["show_logo"]}'
+        )
+        
+        # Update academic year and term
+        updated_content = updated_content.replace(
+            f'ACADEMIC_YEAR = "{escape_string(config_data["old_academic_year"])}"',
+            f'ACADEMIC_YEAR = "{escape_string(config_data["academic_year"])}"'
+        )
+        updated_content = updated_content.replace(
+            f'CURRENT_TERM = "{escape_string(config_data["old_current_term"])}"',
+            f'CURRENT_TERM = "{escape_string(config_data["current_term"])}"'
+        )
+        
+        # Write back to file with UTF-8 encoding and BOM to ensure Windows compatibility
+        with open(config_file_path, 'w', encoding='utf-8-sig') as f:
+            f.write(updated_content)
+        
+        # Verify the file was written correctly by reading it back
+        try:
+            with open(config_file_path, 'r', encoding='utf-8') as f:
+                verification_content = f.read()
+            if len(verification_content) == 0:
+                raise Exception("File was written but appears to be empty")
+        except Exception as e:
+            st.error(f"Configuration file verification failed: {str(e)}")
+            return False
+            
+        return True
+        
+    except Exception as e:
+        import traceback
+        st.error(f"Error saving configuration: {str(e)}")
+        st.error("Please try the following solutions:")
+        st.write("1. Check if the file is not being used by another application")
+        st.write("2. Ensure you have write permissions to the config directory")
+        st.write("3. Try avoiding special characters in the configuration")
+        
+        # Show detailed error for debugging
+        with st.expander("🔧 Technical Details"):
+            st.code(traceback.format_exc())
+        
+        return False
+
+def render_template_editor():
+    """Render the report template editor interface"""
+    st.title("📝 Report Template Editor")
+    st.write("Customize your school report templates with your own information, logo, and styling.")
+    
+    # Load current configuration
+    SchoolConfig = load_school_config()
+    if not SchoolConfig:
+        st.error("Could not load configuration. Please check your setup.")
+        return
+    
+    # Create tabs for different sections
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "🏫 School Info", 
+        "📞 Contact Details", 
+        "🖼️ Logo & Branding", 
+        "📅 Academic Settings", 
+        "🎨 Preview & Apply"
+    ])
+    
+    with tab1:
+        st.header("School Information")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            school_name = st.text_input(
+                "School Name",
+                value=SchoolConfig.SCHOOL_NAME,
+                help="The main name of your school that appears at the top of reports"
+            )
+            
+            school_subtitle = st.text_input(
+                "School Subtitle/Motto", 
+                value=SchoolConfig.SCHOOL_SUBTITLE,
+                help="Optional subtitle or motto (e.g., 'Excellence in Education')"
+            )
+        
+        with col2:
+            address = st.text_area(
+                "School Address",
+                value=SchoolConfig.ADDRESS,
+                help="Full address of the school",
+                height=80
+            )
+            
+            academic_year = st.text_input(
+                "Academic Year",
+                value=SchoolConfig.ACADEMIC_YEAR,
+                help="Current academic year (e.g., '2024-2025')"
+            )
+    
+    with tab2:
+        st.header("Contact Information")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            email = st.text_input(
+                "School Email",
+                value=SchoolConfig.EMAIL,
+                help="Main email address for the school"
+            )
+            
+            website = st.text_input(
+                "School Website",
+                value=getattr(SchoolConfig, 'WEBSITE', ''),
+                help="School website URL (optional)"
+            )
+        
+        with col2:
+            # Phone numbers (editable list)
+            st.write("**Phone Numbers**")
+            
+            # Display current phone numbers
+            current_phones = SchoolConfig.PHONE_NUMBERS.copy()
+            
+            # Allow editing each phone number
+            updated_phones = []
+            for i, phone in enumerate(current_phones):
+                phone_input = st.text_input(
+                    f"Phone {i+1}",
+                    value=phone,
+                    key=f"phone_{i}"
+                )
+                if phone_input.strip():
+                    updated_phones.append(phone_input.strip())
+            
+            # Add new phone number option
+            new_phone = st.text_input("Add New Phone", key="new_phone")
+            if new_phone.strip():
+                updated_phones.append(new_phone.strip())
+            
+            if st.button("➕ Add Another Phone Field"):
+                st.session_state[f"phone_{len(current_phones)}"] = ""
+                st.rerun()
+    
+    with tab3:
+        st.header("Logo & Branding")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.subheader("Logo Settings")
+            
+            show_logo = st.checkbox(
+                "Show Logo in Reports",
+                value=SchoolConfig.SHOW_LOGO,
+                help="Check this to include your school logo in reports"
+            )
+            
+            logo_path = st.text_input(
+                "Logo File Path",
+                value=SchoolConfig.LOGO_PATH,
+                help="Full path to your logo image file (PNG, JPEG, GIF supported)",
+                placeholder="C:/path/to/your/school_logo.png"
+            )
+            
+            # File uploader for logo
+            uploaded_logo = st.file_uploader(
+                "Or Upload Logo File",
+                type=['png', 'jpg', 'jpeg', 'gif'],
+                help="Upload your school logo (recommended: 200x200 pixels or smaller)"
+            )
+            
+            if uploaded_logo:
+                # Save uploaded file temporarily
+                temp_dir = tempfile.gettempdir()
+                temp_logo_path = os.path.join(temp_dir, f"school_logo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{uploaded_logo.name.split('.')[-1]}")
+                
+                with open(temp_logo_path, 'wb') as f:
+                    f.write(uploaded_logo.getbuffer())
+                
+                logo_path = temp_logo_path
+                show_logo = True
+                
+                st.success(f"Logo uploaded successfully! Saved to: {temp_logo_path}")
+                st.info("💡 **Tip**: Copy this path to the 'Logo File Path' field above for permanent use.")
+        
+        with col2:
+            st.subheader("Logo Preview")
+            
+            if logo_path and os.path.exists(logo_path):
+                try:
+                    st.image(logo_path, width=150, caption="Current Logo")
+                    st.success("✅ Logo file found")
+                except Exception as e:
+                    st.error(f"❌ Cannot display logo: {str(e)}")
+            else:
+                st.info("📷 No logo selected or file not found")
+        
+        # Color customization
+        st.subheader("Color Theme")
+        
+        col_a, col_b, col_c = st.columns(3)
+        
+        with col_a:
+            school_color = st.color_picker(
+                "School Color",
+                value="#1A3380",  # Default school blue
+                help="Primary color for headers and school branding"
+            )
+        
+        with col_b:
+            accent_color = st.color_picker(
+                "Accent Color", 
+                value="#FFCC00",  # Default gold
+                help="Accent color for highlights and special sections"
+            )
+        
+        with col_c:
+            success_color = st.color_picker(
+                "Success Color",
+                value="#33B547",  # Default green
+                help="Color for positive indicators and final grades"
+            )
+    
+    with tab4:
+        st.header("Academic Settings")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            current_term = st.selectbox(
+                "Current Term",
+                options=["1ST TERM", "2ND TERM", "3RD TERM"],
+                index=2 if SchoolConfig.CURRENT_TERM == "3RD TERM" else 0,
+                help="Current academic term for reports"
+            )
+            
+            # Report title customization
+            st.subheader("Report Titles")
+            
+            midterm_title = st.text_input(
+                "Mid-term Report Title",
+                value=SchoolConfig.REPORT_TITLES.get("Mid-term", "MID-TERM EXAMINATION REPORT"),
+                help="Title for mid-term examination reports"
+            )
+            
+            endterm_title = st.text_input(
+                "End of Term Report Title", 
+                value=SchoolConfig.REPORT_TITLES.get("End of Term", "END OF TERM EXAMINATION REPORT"),
+                help="Title for end of term examination reports"
+            )
+        
+        with col2:
+            # Grade remarks customization
+            st.subheader("Grade Remarks")
+            st.write("Customize the performance level descriptions for each grade:")
+            
+            grade_remarks = {}
+            for grade in range(1, 10):
+                current_remark = SchoolConfig.GRADE_REMARKS.get(grade, f"GRADE {grade}")
+                grade_remarks[grade] = st.text_input(
+                    f"Grade {grade} Remark",
+                    value=current_remark,
+                    key=f"grade_{grade}_remark"
+                )
+    
+    with tab5:
+        st.header("Preview & Apply Changes")
+        
+        # Show a preview of how the report header will look
+        st.subheader("🔍 Report Header Preview")
+        
+        with st.container():
+            st.markdown(f"""
+            <div style="
+                text-align: center; 
+                padding: 20px; 
+                border: 2px solid #ccc; 
+                border-radius: 10px;
+                background-color: #f8f9fa;
+                margin: 10px 0;
+            ">
+                <h2 style="color: {school_color}; margin: 5px 0;">{school_name}</h2>
+                <p style="color: #666; margin: 5px 0; font-style: italic;">{school_subtitle}</p>
+                <p style="color: #666; margin: 5px 0;">{address}</p>
+                <p style="color: #666; margin: 5px 0;">
+                    📧 {email} | 📞 {' / '.join(updated_phones) if 'updated_phones' in locals() else ' / '.join(SchoolConfig.PHONE_NUMBERS)}
+                </p>
+                <div style="
+                    background-color: {school_color}; 
+                    color: white; 
+                    padding: 10px; 
+                    border-radius: 5px; 
+                    margin: 10px 0;
+                    font-weight: bold;
+                ">
+                    END OF TERM EXAMINATION REPORT ({current_term} 2024)
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Configuration summary
+        st.subheader("📋 Configuration Summary")
+        
+        config_summary = {
+            "School Name": school_name,
+            "Subtitle": school_subtitle,
+            "Address": address,
+            "Email": email,
+            "Phone Numbers": updated_phones if 'updated_phones' in locals() else SchoolConfig.PHONE_NUMBERS,
+            "Logo Enabled": show_logo,
+            "Logo Path": logo_path if logo_path else "Not set",
+            "Academic Year": academic_year,
+            "Current Term": current_term
+        }
+        
+        for key, value in config_summary.items():
+            st.write(f"**{key}:** {value}")
+        
+        # Apply changes button
+        st.divider()
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            if st.button(
+                "💾 Apply Changes to Reports",
+                type="primary",
+                use_container_width=True,
+                help="Save all changes and update the report template"
+            ):
+                # Prepare configuration data for saving
+                config_data = {
+                    # Old values for replacement
+                    "old_school_name": SchoolConfig.SCHOOL_NAME,
+                    "old_subtitle": SchoolConfig.SCHOOL_SUBTITLE,
+                    "old_address": SchoolConfig.ADDRESS,
+                    "old_email": SchoolConfig.EMAIL,
+                    "old_phone_numbers": SchoolConfig.PHONE_NUMBERS,
+                    "old_logo_path": SchoolConfig.LOGO_PATH,
+                    "old_show_logo": SchoolConfig.SHOW_LOGO,
+                    "old_academic_year": SchoolConfig.ACADEMIC_YEAR,
+                    "old_current_term": SchoolConfig.CURRENT_TERM,
+                    
+                    # New values
+                    "school_name": school_name,
+                    "school_subtitle": school_subtitle,
+                    "address": address,
+                    "email": email,
+                    "phone_numbers": updated_phones if 'updated_phones' in locals() else SchoolConfig.PHONE_NUMBERS,
+                    "logo_path": logo_path,
+                    "show_logo": show_logo,
+                    "academic_year": academic_year,
+                    "current_term": current_term
+                }
+                
+                if save_school_config(config_data):
+                    st.success("✅ **Configuration saved successfully!**")
+                    st.info("🔄 **Next Steps:**")
+                    st.write("1. Go to the **Reports** page")
+                    st.write("2. Generate a **School Report PDF** to see your changes")
+                    st.write("3. All future reports will use your new settings")
+                    
+                    # Show restart notice
+                    st.warning("⚠️ **Note:** You may need to refresh the page or restart the application to see all changes take effect.")
+                    
+                    # Balloons for success
+                    st.balloons()
+                else:
+                    st.error("❌ **Error saving configuration.** Please check file permissions and try again.")
+        
+        # Additional help
+        st.divider()
+        
+        with st.expander("💡 Tips for Best Results"):
+            st.markdown("""
+            **Logo Guidelines:**
+            - Use high-quality PNG or JPEG images
+            - Recommended size: 200x200 pixels or smaller
+            - Square or rectangular logos work best
+            - Place logo files in a permanent location (not temporary folders)
+            
+            **Color Selection:**
+            - Choose colors that represent your school's identity
+            - Ensure good contrast between text and background colors
+            - Test with both light and dark color combinations
+            
+            **Text Guidelines:**
+            - Keep school name concise but descriptive
+            - Include complete contact information
+            - Double-check spelling and formatting
+            - Use professional language for subtitles and mottos
+            
+            **File Management:**
+            - Save logo files in a dedicated folder (e.g., C:/School_Assets/logo.png)
+            - Backup your configuration before making major changes
+            - Test reports after applying changes
+            """)
+
+# Render the template editor
+render_template_editor()

@@ -1,0 +1,302 @@
+"""
+Simple Report Template Editor
+Web interface for customizing school report templates using JSON configuration
+"""
+
+import streamlit as st
+import os
+import sys
+import json
+from datetime import datetime
+
+# Ensure proper imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.rbac import is_logged_in, get_current_user, has_permission
+
+# Page configuration and authentication check
+st.set_page_config(page_title="Report Template Editor", page_icon="📝", layout="wide")
+
+# Authentication check
+if not is_logged_in():
+    st.error("🔐 Please log in to access this page.")
+    st.stop()
+
+user = get_current_user()
+if not user or not has_permission(user['role'], 'reports.templates.edit'):
+    st.error("🚫 You don't have permission to edit report templates.")
+    st.stop()
+
+def load_config():
+    """Load configuration from JSON file"""
+    config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'school_settings.json')
+    try:
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        # Return default configuration
+        return {
+            "school_name": "KHAYYAM ACADEMY",
+            "school_subtitle": "Excellence in Islamic Education", 
+            "address": "P.O. Box 123, School Street, City, Country",
+            "email": "info@khayyamacademy.edu",
+            "phone_numbers": ["+123-456-7890", "+123-456-7891"],
+            "logo_path": "",
+            "show_logo": False,
+            "academic_year": "2024-2025",
+            "current_term": "3RD TERM",
+            "report_titles": {
+                "Mid-term": "MID-TERM EXAMINATION REPORT",
+                "End of Term": "END OF TERM EXAMINATION REPORT"
+            },
+            "grade_remarks": {
+                "1": "HIGHEST", "2": "HIGHER", "3": "HIGH", "4": "GOOD", "5": "CREDIT",
+                "6": "PASS", "7": "FAIR", "8": "POOR", "9": "FAIL"
+            }
+        }
+    except Exception as e:
+        st.error(f"Error loading configuration: {str(e)}")
+        return {}
+
+def save_config(config_data):
+    """Save configuration to JSON file"""
+    config_file = os.path.join(os.path.dirname(__file__), '..', 'config', 'school_settings.json')
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(config_file), exist_ok=True)
+        
+        with open(config_file, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        st.error(f"Error saving configuration: {str(e)}")
+        return False
+
+def main():
+    """Main template editor interface"""
+    st.title("📝 Report Template Editor")
+    st.write("Customize your school report templates with your own information and styling.")
+    
+    # Load current configuration
+    config = load_config()
+    if not config:
+        st.error("Could not load configuration. Please check your setup.")
+        return
+    
+    # Create tabs for different sections
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "🏫 School Info", 
+        "📞 Contact Details", 
+        "📅 Academic Settings", 
+        "💾 Save Changes"
+    ])
+    
+    # Initialize the configuration updates
+    updated_config = config.copy()
+    
+    with tab1:
+        st.header("School Information")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            school_name = st.text_input(
+                "School Name",
+                value=config.get("school_name", ""),
+                help="The main name of your school that appears at the top of reports"
+            )
+            updated_config["school_name"] = school_name
+            
+            school_subtitle = st.text_input(
+                "School Subtitle/Motto", 
+                value=config.get("school_subtitle", ""),
+                help="Optional subtitle or motto (e.g., 'Excellence in Education')"
+            )
+            updated_config["school_subtitle"] = school_subtitle
+        
+        with col2:
+            address = st.text_area(
+                "School Address",
+                value=config.get("address", ""),
+                help="Full address of the school",
+                height=100
+            )
+            updated_config["address"] = address
+    
+    with tab2:
+        st.header("Contact Information")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            email = st.text_input(
+                "School Email",
+                value=config.get("email", ""),
+                help="Main email address for the school"
+            )
+            updated_config["email"] = email
+        
+        with col2:
+            st.write("**Phone Numbers**")
+            
+            # Get current phone numbers
+            current_phones = config.get("phone_numbers", [])
+            
+            # Allow editing phone numbers
+            phone_1 = st.text_input("Phone 1", value=current_phones[0] if len(current_phones) > 0 else "")
+            phone_2 = st.text_input("Phone 2", value=current_phones[1] if len(current_phones) > 1 else "")
+            phone_3 = st.text_input("Phone 3 (Optional)", value=current_phones[2] if len(current_phones) > 2 else "")
+            
+            # Build updated phone list (only include non-empty phones)
+            updated_phones = [phone for phone in [phone_1, phone_2, phone_3] if phone.strip()]
+            updated_config["phone_numbers"] = updated_phones
+    
+    with tab3:
+        st.header("Academic Settings")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            academic_year = st.text_input(
+                "Academic Year",
+                value=config.get("academic_year", "2024-2025"),
+                help="Current academic year (e.g., '2024-2025')"
+            )
+            updated_config["academic_year"] = academic_year
+            
+            current_term = st.selectbox(
+                "Current Term",
+                options=["1ST TERM", "2ND TERM", "3RD TERM"],
+                index=2 if config.get("current_term") == "3RD TERM" else 0,
+                help="Current academic term for reports"
+            )
+            updated_config["current_term"] = current_term
+        
+        with col2:
+            st.subheader("Report Titles")
+            
+            report_titles = config.get("report_titles", {})
+            
+            midterm_title = st.text_input(
+                "Mid-term Report Title",
+                value=report_titles.get("Mid-term", "MID-TERM EXAMINATION REPORT"),
+                help="Title for mid-term examination reports"
+            )
+            
+            endterm_title = st.text_input(
+                "End of Term Report Title", 
+                value=report_titles.get("End of Term", "END OF TERM EXAMINATION REPORT"),
+                help="Title for end of term examination reports"
+            )
+            
+            updated_config["report_titles"] = {
+                "Mid-term": midterm_title,
+                "End of Term": endterm_title
+            }
+    
+    with tab4:
+        st.header("Preview & Save Changes")
+        
+        # Show a preview of how the report header will look
+        st.subheader("🔍 Report Header Preview")
+        
+        with st.container():
+            st.markdown(f"""
+            <div style="
+                text-align: center; 
+                padding: 20px; 
+                border: 2px solid #ccc; 
+                border-radius: 10px;
+                background-color: #f8f9fa;
+                margin: 10px 0;
+            ">
+                <h2 style="color: #1A3380; margin: 5px 0;">{updated_config['school_name']}</h2>
+                <p style="color: #666; margin: 5px 0; font-style: italic;">{updated_config['school_subtitle']}</p>
+                <p style="color: #666; margin: 5px 0;">{updated_config['address']}</p>
+                <p style="color: #666; margin: 5px 0;">
+                    📧 {updated_config['email']} | 📞 {' / '.join(updated_config['phone_numbers'])}
+                </p>
+                <div style="
+                    background-color: #1A3380; 
+                    color: white; 
+                    padding: 10px; 
+                    border-radius: 5px; 
+                    margin: 10px 0;
+                    font-weight: bold;
+                ">
+                    {updated_config['report_titles']['End of Term']} ({updated_config['current_term']} {updated_config['academic_year'].split('-')[0]})
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Configuration summary
+        st.subheader("📋 Configuration Summary")
+        
+        config_summary = {
+            "School Name": updated_config['school_name'],
+            "Subtitle": updated_config['school_subtitle'],
+            "Address": updated_config['address'],
+            "Email": updated_config['email'],
+            "Phone Numbers": ', '.join(updated_config['phone_numbers']),
+            "Academic Year": updated_config['academic_year'],
+            "Current Term": updated_config['current_term']
+        }
+        
+        for key, value in config_summary.items():
+            st.write(f"**{key}:** {value}")
+        
+        # Save changes button
+        st.divider()
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col2:
+            if st.button(
+                "💾 Save All Changes",
+                type="primary",
+                use_container_width=True,
+                help="Save all changes and update the report template"
+            ):
+                if save_config(updated_config):
+                    st.success("✅ **Configuration saved successfully!**")
+                    st.info("🔄 **Next Steps:**")
+                    st.write("1. Go to the **Reports** page")
+                    st.write("2. Generate a **School Report PDF** to see your changes")
+                    st.write("3. All future reports will use your new settings")
+                    
+                    # Balloons for success
+                    st.balloons()
+                    
+                    # Refresh the page to show updated values
+                    st.rerun()
+                else:
+                    st.error("❌ **Error saving configuration.** Please try again.")
+        
+        # Additional help
+        st.divider()
+        
+        with st.expander("💡 Tips for Best Results"):
+            st.markdown("""
+            **Text Guidelines:**
+            - Keep school name concise but descriptive
+            - Include complete contact information
+            - Double-check spelling and formatting
+            - Use professional language for subtitles and mottos
+            
+            **Phone Numbers:**
+            - Enter phone numbers in your preferred format
+            - Leave unused phone fields empty
+            - Include country codes if needed
+            
+            **Academic Settings:**
+            - Keep academic year in YYYY-YYYY format
+            - Select the current term accurately
+            - Customize report titles to match your school's style
+            
+            **Testing:**
+            - Save your changes first
+            - Go to Reports page to test PDF generation
+            - Check that all information appears correctly
+            """)
+
+# Run the main function
+main()
