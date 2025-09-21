@@ -19,12 +19,12 @@
         "1": "HIGHEST",
         "2": "HIGHER",
         "3": "HIGH",
-        "4": "GOOD",
-        "5": "CREDIT",
-        "6": "PASS",
-        "7": "FAIR",
-        "8": "POOR",
-        "9": "FAIL"
+        "4": "HIGH AVERAGE",
+        "5": "AVERAGE",
+        "6": "LOW AVERAGE",
+        "7": "LOW",
+        "8": "LOWER",
+        "9": "LOWEST"
     },
     "colors": {
         "school_primary": "#1A3380",
