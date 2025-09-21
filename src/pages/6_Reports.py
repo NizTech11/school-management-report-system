@@ -342,11 +342,16 @@ def generate_professional_school_report(student_data, marks_data, aggregate_deta
     # Enhanced grade descriptions - Use configurable remarks
     performance_levels = school_config.GRADE_REMARKS
     
-    # Process subjects with proper formatting
+    # Process subjects with proper formatting and calculate total score
+    total_exam_score = 0
     for mark in marks_data:
         grade = mark.get('grade', '')
         score = mark.get('score', 0)
         subject_name = mark.get('subject_name', '').title()
+        
+        # Add to total score calculation
+        if isinstance(score, (int, float)):
+            total_exam_score += score
         
         # Handle long subject names more aggressively for single page
         if len(subject_name) > 18:
@@ -361,11 +366,11 @@ def generate_professional_school_report(student_data, marks_data, aggregate_deta
             performance_levels.get(grade, "N/A")  # Full remarks, not truncated
         ])
     
-    # Add aggregate with special formatting
+    # Add aggregate with total exam score instead of dash
     if aggregate_details:
         performance_data.append([
             "AGGREGATE TOTAL",
-            "—",
+            f"{total_exam_score:.1f}",  # Show total of all exam scores
             str(aggregate_details.get('aggregate', '')),
             "FINAL GRADE"
         ])
