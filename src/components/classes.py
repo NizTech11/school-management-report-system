@@ -109,22 +109,37 @@ def display_classes():
                         st.write("**Teacher:** Not assigned")
                 
                 with col4:
-                    # Edit/Reassign teacher button
-                    if st.button(f"Edit", key=f"edit_{cls.id}", type="secondary"):
-                        st.session_state[f"edit_class_{cls.id}"] = True
+                    # Check if this class is being edited
+                    is_editing = st.session_state.get(f"edit_class_{cls.id}", False)
                     
-                    if st.button(f"Delete", key=f"delete_{cls.id}", type="secondary"):
+                    # Edit/Reassign teacher button
+                    if is_editing:
+                        st.success("✏️ Editing...")
+                    else:
+                        if st.button(f"Edit", key=f"edit_{cls.id}", type="secondary"):
+                            st.session_state[f"edit_class_{cls.id}"] = True
+                            st.rerun()
+                    
+                    if not is_editing and st.button(f"Delete", key=f"delete_{cls.id}", type="secondary"):
                         delete_class(cls.id, cls.name)
             
             # Check if this class is being edited
             if st.session_state.get(f"edit_class_{cls.id}", False):
-                edit_class_teacher(cls, teacher_map)
+                with st.container():
+                    st.markdown("---")
+                    st.markdown(f"### ✏️ Editing: {cls.name}")
+                    with st.container():
+                        st.markdown("""
+                        <div style="padding: 20px; background-color: #f0f8ff; border-left: 4px solid #1f77b4; border-radius: 5px; margin: 10px 0;">
+                        """, unsafe_allow_html=True)
+                        edit_class_teacher(cls, teacher_map)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                    st.markdown("---")
 
 
 @require_permission("classes.edit")
 def edit_class_teacher(cls, teacher_map):
     """Edit class teacher assignment"""
-    st.subheader(f"Edit Class: {cls.name}")
     
     with get_session() as session:
         teachers = session.exec(select(Teacher).order_by(Teacher.last_name, Teacher.first_name)).all()
@@ -135,9 +150,9 @@ def edit_class_teacher(cls, teacher_map):
         # Current teacher info
         current_teacher = teacher_map.get(cls.teacher_id)
         if current_teacher:
-            st.write(f"**Current Teacher:** {current_teacher.first_name} {current_teacher.last_name}")
+            st.info(f"**Current Teacher:** {current_teacher.first_name} {current_teacher.last_name}")
         else:
-            st.write("**Current Teacher:** Not assigned")
+            st.info("**Current Teacher:** Not assigned")
 
         # --- Category selection for editing ---
         category_options = ["Lower Primary", "Upper Primary", "JHS"]
