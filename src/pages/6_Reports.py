@@ -299,7 +299,7 @@ def generate_professional_school_report(student_data, marks_data, aggregate_deta
     student_info_data = [
         ["Student ID:", student_data.get('student_id', 'N/A'), "", "Academic Year:", student_data.get('year', 'YEAR 1B')],
         ["Full Name:", student_data.get('name', ''), "", "Report Date:", formatted_date],
-        ["Roll Number:", student_data.get('roll_number', '23'), "", "Term:", term.upper()]
+        ["Number on Roll:", student_data.get('roll_number', '0'), "", "Term:", term.upper()]
     ]
     
     student_table = Table(student_info_data, colWidths=[75, 125, 20, 75, 115])
@@ -929,12 +929,25 @@ def render_individual_report(students, class_map):
             
             # School Format PDF Download
             with col3:
+                # Calculate total students in the same class (Number on Roll)
+                if student.class_id:
+                    from sqlmodel import func
+                    total_students_in_class = session.scalar(
+                        select(func.count()).select_from(Student).where(Student.class_id == student.class_id)
+                    ) or 0
+                else:
+                    total_students_in_class = 0
+                
+                # Get the class name for the year field
+                student_class = class_map.get(student.class_id) if student.class_id else None
+                class_name = student_class.name if student_class else "No Class"
+                
                 # Prepare data for school report
                 student_data = {
                     'student_id': f"BKIS{student.id:04d}",  # Format student ID
                     'name': f"{student.first_name} {student.last_name}".upper(),
-                    'year': 'YEAR 1B',  # You may want to make this dynamic based on class
-                    'roll_number': '23'  # This could be derived from student data
+                    'year': class_name.upper(),  # Use actual class name
+                    'roll_number': str(total_students_in_class)  # Total number of students in class
                 }
                 
                 # Get marks data in the format needed for the school report
