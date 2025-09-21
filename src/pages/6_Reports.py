@@ -12,7 +12,7 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from datetime import datetime
@@ -228,6 +228,37 @@ def generate_professional_school_report(student_data, marks_data, aggregate_deta
     )
     
     # === HEADER SECTION ===
+    # Add school logo if enabled and path exists
+    if school_config.SHOW_LOGO and school_config.LOGO_PATH:
+        import os
+        # Handle logo path - try multiple locations
+        logo_path = school_config.LOGO_PATH
+        possible_paths = [
+            logo_path,  # Original path from config
+            os.path.join("assets", "logos", os.path.basename(logo_path)),  # Relative to project root
+            os.path.join("src", "assets", "logos", os.path.basename(logo_path)),  # In src folder
+            os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", os.path.basename(logo_path))  # Relative to this file
+        ]
+        
+        working_logo_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                working_logo_path = path
+                break
+        
+        if working_logo_path:
+            try:
+                # Create logo image with appropriate sizing
+                logo_img = Image(working_logo_path, width=60, height=60)  # Small logo size for header
+                logo_img.hAlign = 'CENTER'
+                story.append(logo_img)
+                story.append(Spacer(1, 10))
+            except Exception as e:
+                # If logo fails to load, continue without it
+                print(f"Warning: Could not load logo from {working_logo_path}: {e}")
+        else:
+            print(f"Warning: Logo file not found. Tried paths: {possible_paths}")
+    
     story.append(Paragraph(str(school_config.SCHOOL_NAME), school_title_style))
     story.append(Paragraph(str(school_config.SCHOOL_SUBTITLE), school_subtitle_style))
     
@@ -512,6 +543,35 @@ def generate_pdf_report(title, data, headers, filename_prefix="report"):
         textColor=colors.darkblue
     )
     
+    # Add school logo if enabled and path exists
+    if school_config.SHOW_LOGO and school_config.LOGO_PATH:
+        import os
+        # Handle logo path - try multiple locations
+        logo_path = school_config.LOGO_PATH
+        possible_paths = [
+            logo_path,  # Original path from config
+            os.path.join("assets", "logos", os.path.basename(logo_path)),  # Relative to project root
+            os.path.join("src", "assets", "logos", os.path.basename(logo_path)),  # In src folder
+            os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", os.path.basename(logo_path))  # Relative to this file
+        ]
+        
+        working_logo_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                working_logo_path = path
+                break
+        
+        if working_logo_path:
+            try:
+                # Create logo image
+                logo_img = Image(working_logo_path, width=50, height=50)
+                logo_img.hAlign = 'CENTER'
+                story.append(logo_img)
+                story.append(Spacer(1, 15))
+            except Exception as e:
+                print(f"Warning: Could not load logo from {working_logo_path}: {e}")
+        else:
+            print(f"Warning: Logo file not found. Tried paths: {possible_paths}")
     # Add title
     story.append(Paragraph(title, title_style))
     story.append(Spacer(1, 12))
