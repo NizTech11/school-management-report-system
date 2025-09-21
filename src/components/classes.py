@@ -111,10 +111,14 @@ def display_classes():
                 with col4:
                     # Edit/Reassign teacher button
                     if st.button(f"Edit", key=f"edit_{cls.id}", type="secondary"):
-                        edit_class_teacher(cls, teacher_map)
+                        st.session_state[f"edit_class_{cls.id}"] = True
                     
                     if st.button(f"Delete", key=f"delete_{cls.id}", type="secondary"):
                         delete_class(cls.id, cls.name)
+            
+            # Check if this class is being edited
+            if st.session_state.get(f"edit_class_{cls.id}", False):
+                edit_class_teacher(cls, teacher_map)
 
 
 @require_permission("classes.edit")
@@ -124,51 +128,69 @@ def edit_class_teacher(cls, teacher_map):
     
     with get_session() as session:
         teachers = session.exec(select(Teacher).order_by(Teacher.last_name, Teacher.first_name)).all()
-        
         if not teachers:
             st.warning("No teachers available to assign.")
             return
-        
+
         # Current teacher info
         current_teacher = teacher_map.get(cls.teacher_id)
         if current_teacher:
             st.write(f"**Current Teacher:** {current_teacher.first_name} {current_teacher.last_name}")
         else:
             st.write("**Current Teacher:** Not assigned")
-        
+
+        # --- Category selection for editing ---
+        category_options = ["Lower Primary", "Upper Primary", "JHS"]
+        current_category_index = category_options.index(cls.category) if cls.category in category_options else 0
+        selected_category = st.selectbox(
+            "Change Category",
+            category_options,
+            index=current_category_index,
+            key=f"category_select_{cls.id}"
+        )
+
         # Teacher selection
         teacher_options = ["No Teacher Assigned"] + [f"{t.first_name} {t.last_name} ({t.subject_specialization or 'No specialization'})" for t in teachers]
-        
-        # Set default selection
         if current_teacher:
             default_index = next((i+1 for i, t in enumerate(teachers) if t.id == current_teacher.id), 0)
         else:
             default_index = 0
-        
         selected_teacher_display = st.selectbox(
-            "Select New Teacher", 
+            "Select New Teacher",
             teacher_options,
             index=default_index,
             key=f"teacher_select_{cls.id}"
         )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Update Class", key=f"update_{cls.id}"):
+                # Handle teacher
+                if selected_teacher_display == "No Teacher Assigned":
+                    new_teacher_id = None
+                    teacher_name = "No teacher"
+                else:
+                    teacher_name = selected_teacher_display.split(" (")[0]
+                    first_name, last_name = teacher_name.split(" ", 1)
+                    selected_teacher = next((t for t in teachers if t.first_name == first_name and t.last_name == last_name), None)
+                    new_teacher_id = selected_teacher.id if selected_teacher else None
+                    teacher_name = f"{selected_teacher.first_name} {selected_teacher.last_name}" if selected_teacher else "No teacher"
+
+                # Update the class category and teacher
+                cls.teacher_id = new_teacher_id
+                cls.category = selected_category
+                session.add(cls)
+                session.commit()
+                
+                # Clear the edit state
+                st.session_state[f"edit_class_{cls.id}"] = False
+                st.success(f"Class '{cls.name}' updated. Category: {selected_category}, Teacher: {teacher_name}")
+                st.rerun()
         
-        if st.button("Update Teacher Assignment", key=f"update_{cls.id}"):
-            if selected_teacher_display == "No Teacher Assigned":
-                new_teacher_id = None
-                teacher_name = "No teacher"
-            else:
-                teacher_name = selected_teacher_display.split(" (")[0]
-                first_name, last_name = teacher_name.split(" ", 1)
-                selected_teacher = next((t for t in teachers if t.first_name == first_name and t.last_name == last_name), None)
-                new_teacher_id = selected_teacher.id if selected_teacher else None
-                teacher_name = f"{selected_teacher.first_name} {selected_teacher.last_name}" if selected_teacher else "No teacher"
-            
-            # Update the class
-            cls.teacher_id = new_teacher_id
-            session.add(cls)
-            session.commit()
-            st.success(f"Class '{cls.name}' updated. Teacher: {teacher_name}")
-            st.rerun()
+        with col2:
+            if st.button("Cancel", key=f"cancel_{cls.id}"):
+                st.session_state[f"edit_class_{cls.id}"] = False
+                st.rerun()
 
 
 @require_permission("classes.delete")
