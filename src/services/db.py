@@ -333,15 +333,16 @@ def calculate_grade(score: float) -> int:
     Convert a score (0-100) to a grade (1-9) for primary/basic schools
     
     Grade scale:
-    80-100 = Grade 1 (HIGHEST)
-    70-79  = Grade 2 (HIGHER)
-    65-69  = Grade 3 (HIGH)
-    60-64  = Grade 4 (HIGH AVERAGE)
-    55-59  = Grade 5 (AVERAGE)
-    50-54  = Grade 6 (LOW AVERAGE)
-    45-49  = Grade 7 (LOW)
-    35-44  = Grade 8 (LOWER)
-    0-34   = Grade 9 (LOWEST)
+    90-100 = Grade 1 (HIGHEST)
+    80-89  = Grade 2 (HIGHER)
+    70-79  = Grade 3 (HIGH)
+    60-69  = Grade 4 (HIGH AVERAGE)
+    50-59  = Grade 5 (AVERAGE)
+    40-49  = Grade 6 (LOW AVERAGE)
+    30-39  = Grade 7 (LOW)
+    20-29  = Grade 8 (LOWER)
+    10-19  = Grade 9 (LOWEST)
+    0-9    = Grade 9 (LOWEST)
     
     Args:
         score: The score between 0-100
@@ -355,24 +356,24 @@ def calculate_grade(score: float) -> int:
     if score < 0 or score > 100:
         raise ValueError(f"Score must be between 0 and 100, got {score}")
     
-    if score >= 80:
+    if score >= 90:
         return 1
-    elif score >= 70:
+    elif score >= 80:
         return 2
-    elif score >= 65:
+    elif score >= 70:
         return 3
     elif score >= 60:
         return 4
-    elif score >= 55:
-        return 5
     elif score >= 50:
+        return 5
+    elif score >= 40:
         return 6
-    elif score >= 45:
+    elif score >= 30:
         return 7
-    elif score >= 35:
+    elif score >= 20:
         return 8
     else:
-        return 9  # 0-34 gets grade 9
+        return 9  # 0-19 gets grade 9
 
 
 def validate_score(score: float) -> bool:
