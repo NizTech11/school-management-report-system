@@ -232,24 +232,52 @@ def get_current_user() -> Optional[Dict]:
 
 def is_logged_in() -> bool:
     """Check if a user is currently logged in"""
-    return 'user' in st.session_state and st.session_state.user is not None
+    # Check if user exists in session state and has required fields
+    if 'user' in st.session_state:
+        user = st.session_state.user
+        if user and isinstance(user, dict) and 'id' in user and 'username' in user:
+            return True
+    return False
 
 def logout():
     """Log out the current user"""
     if 'user' in st.session_state:
         del st.session_state.user
+    if 'user_authenticated' in st.session_state:
+        del st.session_state.user_authenticated
+    if 'user_id' in st.session_state:
+        del st.session_state.user_id
     st.rerun()
+
+def debug_session_state():
+    """Debug function to check session state (only for troubleshooting)"""
+    if st.sidebar.button("🔍 Debug Session (Admin Only)"):
+        user = get_current_user()
+        if user and user.get('role') == 'Administrator':
+            st.sidebar.write("**Session Debug Info:**")
+            st.sidebar.write(f"- User in session: {'user' in st.session_state}")
+            st.sidebar.write(f"- User authenticated: {st.session_state.get('user_authenticated', False)}")
+            if 'user' in st.session_state:
+                st.sidebar.write(f"- Username: {st.session_state.user.get('username', 'N/A')}")
+                st.sidebar.write(f"- Login time: {st.session_state.user.get('login_time', 'N/A')}")
+            st.sidebar.write(f"- Session keys: {list(st.session_state.keys())}")
 
 def login_user(user_data: Dict):
     """Log in a user and store in session state"""
+    # Store user data with timestamp for debugging
     st.session_state.user = {
         'id': user_data['id'],
         'username': user_data['username'],
         'email': user_data['email'],
         'full_name': user_data['full_name'],
         'role': user_data['role'],
-        'permissions': list(get_user_permissions(user_data['role']))
+        'permissions': list(get_user_permissions(user_data['role'])),
+        'login_time': datetime.now().isoformat()
     }
+    
+    # Also store in a more persistent way for debugging
+    st.session_state.user_authenticated = True
+    st.session_state.user_id = user_data['id']
 
 def get_permission_description(permission: str) -> str:
     """Get human-readable description of a permission"""

@@ -25,7 +25,8 @@ try:
         has_permission, 
         is_logged_in, 
         get_current_user,
-        initialize_rbac
+        initialize_rbac,
+        debug_session_state
     )
     auth_ok = True
 except Exception as e:
@@ -107,6 +108,9 @@ def render_sidebar():
             
             # User info and logout
             render_user_info()
+            
+            # Debug session state for administrators (troubleshooting only)
+            debug_session_state()
     else:
         st.sidebar.write("Please log in to access the system.")
 
