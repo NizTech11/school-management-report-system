@@ -149,6 +149,302 @@ except Exception as e:
     school_config = SchoolConfig()
 
 
+def generate_end_of_term_report(student_data, marks_data, aggregate_details, term="Term 3", exam_type="End of Term"):
+    """
+    Generate End of Term examination report matching the specific template format
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=A4, 
+        topMargin=30,
+        bottomMargin=40, 
+        leftMargin=40, 
+        rightMargin=40
+    )
+    story = []
+    
+    # Color scheme matching the template
+    HEADER_BLUE = colors.Color(0.2, 0.3, 0.6)  # Dark blue for header
+    YELLOW_ACCENT = colors.Color(1.0, 0.8, 0.0)  # Yellow for exam type
+    SUBJECT_BLUE = colors.Color(0.0, 0.6, 0.8)  # Light blue for subject headers
+    AGGREGATE_BLUE = colors.Color(0.3, 0.4, 0.8)  # Blue for aggregate
+    
+    styles = getSampleStyleSheet()
+    
+    # Header styles
+    header_style = ParagraphStyle(
+        'HeaderStyle',
+        parent=styles['Normal'],
+        fontSize=14,
+        fontName='Helvetica-Bold',
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        spaceAfter=2
+    )
+    
+    contact_style = ParagraphStyle(
+        'ContactStyle',
+        parent=styles['Normal'],
+        fontSize=9,
+        fontName='Helvetica',
+        textColor=colors.white,
+        alignment=TA_CENTER,
+        spaceAfter=2
+    )
+    
+    exam_type_style = ParagraphStyle(
+        'ExamTypeStyle',
+        parent=styles['Normal'],
+        fontSize=12,
+        fontName='Helvetica-Bold',
+        textColor=colors.black,
+        alignment=TA_CENTER,
+        spaceAfter=10
+    )
+    
+    # === HEADER SECTION ===
+    # School logo if available
+    if school_config.SHOW_LOGO and school_config.LOGO_PATH:
+        import os
+        working_logo_path = None
+        possible_paths = [
+            school_config.LOGO_PATH,
+            os.path.join("assets", "logos", os.path.basename(school_config.LOGO_PATH)),
+            os.path.join("src", "assets", "logos", os.path.basename(school_config.LOGO_PATH)),
+            os.path.join(os.path.dirname(__file__), "..", "..", "assets", "logos", os.path.basename(school_config.LOGO_PATH))
+        ]
+        
+        for path in possible_paths:
+            if os.path.exists(path):
+                working_logo_path = path
+                break
+        
+        if working_logo_path:
+            try:
+                # Create header table with logo and text
+                logo_img = Image(working_logo_path, width=50, height=50)
+                
+                header_data = [[
+                    logo_img,
+                    Paragraph(f"<b>{school_config.SCHOOL_NAME}</b><br/>{school_config.ADDRESS}<br/>Email: {school_config.EMAIL} Tel: {' / '.join(school_config.PHONE_NUMBERS)}", header_style)
+                ]]
+                
+                header_table = Table(header_data, colWidths=[60, 450])
+                header_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), HEADER_BLUE),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('ALIGN', (0, 0), (0, 0), 'CENTER'),
+                    ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 8),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                story.append(header_table)
+            except Exception as e:
+                # Fallback without logo
+                header_text = f"<b>{school_config.SCHOOL_NAME}</b><br/>{school_config.ADDRESS}<br/>Email: {school_config.EMAIL} Tel: {' / '.join(school_config.PHONE_NUMBERS)}"
+                header_para = Paragraph(header_text, header_style)
+                
+                header_table = Table([[header_para]], colWidths=[510])
+                header_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), HEADER_BLUE),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 10),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+                ]))
+                story.append(header_table)
+    else:
+        # Header without logo
+        header_text = f"<b>{school_config.SCHOOL_NAME}</b><br/>{school_config.ADDRESS}<br/>Email: {school_config.EMAIL} Tel: {' / '.join(school_config.PHONE_NUMBERS)}"
+        header_para = Paragraph(header_text, header_style)
+        
+        header_table = Table([[header_para]], colWidths=[510])
+        header_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), HEADER_BLUE),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        story.append(header_table)
+    
+    # Exam type header
+    exam_title = f"END OF {term.upper()} EXAMINATION REPORT"
+    exam_table = Table([[Paragraph(exam_title, exam_type_style)]], colWidths=[510])
+    exam_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), YELLOW_ACCENT),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(exam_table)
+    story.append(Spacer(1, 10))
+    
+    # === STUDENT INFORMATION ===
+    current_date = datetime.now().strftime("%d%s %B, %Y" % (datetime.now().day, "th" if 10<=datetime.now().day%100<=20 else {1:"st",2:"nd",3:"rd"}.get(datetime.now().day%10, "th")))
+    next_term_date = "6TH MAY, 2025"  # You can make this configurable
+    
+    student_info_data = [
+        ["STUDENT ID", student_data.get('student_id', 'N/A'), "", "YEAR", student_data.get('year', '1B')],
+        ["STUDENT NAME", student_data.get('name', ''), "", "NEXT TERM BEGINS", next_term_date],
+        ["DATE", current_date, "", "", ""]
+    ]
+    
+    student_table = Table(student_info_data, colWidths=[100, 200, 20, 120, 70])
+    student_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (3, 0), (3, -1), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        # Underlines for student info
+        ('LINEBELOW', (1, 0), (1, 0), 1, colors.black),
+        ('LINEBELOW', (4, 0), (4, 0), 1, colors.black),
+        ('LINEBELOW', (1, 1), (1, 1), 1, colors.black),
+        ('LINEBELOW', (4, 1), (4, 1), 1, colors.black),
+        ('LINEBELOW', (1, 2), (1, 2), 1, colors.black),
+    ]))
+    story.append(student_table)
+    story.append(Spacer(1, 15))
+    
+    # === SUBJECTS TABLE ===
+    # Table headers
+    subject_headers = [
+        Paragraph("<b>SUBJECTS</b>", styles['Normal']),
+        Paragraph("<b>MARKS</b>", styles['Normal']),
+        Paragraph("<b>GRADES</b>", styles['Normal']),
+        Paragraph("<b>REMARKS</b>", styles['Normal'])
+    ]
+    
+    table_data = [subject_headers]
+    
+    # Calculate total marks for aggregate display
+    total_marks = 0
+    performance_levels = school_config.GRADE_REMARKS
+    
+    # Add subject rows
+    for mark in marks_data:
+        subject_name = mark.get('subject_name', '').upper()
+        score = mark.get('score', 0)
+        grade = mark.get('grade', '')
+        
+        # Add to total
+        if isinstance(score, (int, float)):
+            total_marks += score
+        
+        # Create subject row with blue background for subject name
+        subject_cell = Paragraph(f"<b>{subject_name}</b>", styles['Normal'])
+        marks_cell = Paragraph(f"<b>{int(score)}</b>", styles['Normal'])
+        grade_cell = Paragraph(f"<b>{grade}</b>", styles['Normal'])
+        remark_cell = Paragraph(f"<b>{performance_levels.get(grade, 'N/A')}</b>", styles['Normal'])
+        
+        table_data.append([subject_cell, marks_cell, grade_cell, remark_cell])
+    
+    # Add AGGREGATE row
+    aggregate_grade = aggregate_details.get('aggregate', '') if aggregate_details else ''
+    aggregate_row = [
+        Paragraph("<b>AGGREGATE</b>", styles['Normal']),
+        "",
+        Paragraph(f"<b>{aggregate_grade}</b>", styles['Normal']),
+        ""
+    ]
+    table_data.append(aggregate_row)
+    
+    # Create the main subjects table
+    subjects_table = Table(table_data, colWidths=[170, 80, 80, 180])
+    
+    # Style the table
+    table_style = [
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        
+        # Header row styling
+        ('BACKGROUND', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+    ]
+    
+    # Subject name column - blue background
+    for i in range(1, len(table_data) - 1):  # Exclude header and aggregate
+        table_style.append(('BACKGROUND', (0, i), (0, i), SUBJECT_BLUE))
+        table_style.append(('TEXTCOLOR', (0, i), (0, i), colors.white))
+    
+    # Aggregate row - special styling
+    aggregate_row_index = len(table_data) - 1
+    table_style.extend([
+        ('BACKGROUND', (0, aggregate_row_index), (-1, aggregate_row_index), AGGREGATE_BLUE),
+        ('TEXTCOLOR', (0, aggregate_row_index), (-1, aggregate_row_index), colors.white),
+        ('FONTNAME', (0, aggregate_row_index), (-1, aggregate_row_index), 'Helvetica-Bold'),
+    ])
+    
+    subjects_table.setStyle(TableStyle(table_style))
+    story.append(subjects_table)
+    story.append(Spacer(1, 20))
+    
+    # === ATTENDANCE AND COMMENTS SECTION ===
+    # Attendance info
+    attendance_data = [
+        ["ATTENDANCE:", "67", "OUT OF", "68"],
+        ["CONDUCT:", "", "Respectful", ""],
+        ["ATTITUDE:", "", "Comes to school ready to learn", ""],
+        ["INTEREST:", "", "cheer leading", ""],
+        ["CLASS TEACHER'S REMARKS:", "", "Intelligent and keenly interested in the subject", ""],
+        ["HEAD TEACHER'S REMARKS:", "", "A proficient academic performance", ""]
+    ]
+    
+    attendance_table = Table(attendance_data, colWidths=[130, 60, 60, 260])
+    attendance_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+        # Underlines for fillable fields
+        ('LINEBELOW', (1, 0), (1, 0), 1, colors.black),
+        ('LINEBELOW', (3, 0), (3, 0), 1, colors.black),
+        ('LINEBELOW', (2, 1), (3, 1), 1, colors.black),
+        ('LINEBELOW', (2, 2), (3, 2), 1, colors.black),
+        ('LINEBELOW', (2, 3), (3, 3), 1, colors.black),
+        ('LINEBELOW', (2, 4), (3, 4), 1, colors.black),
+        ('LINEBELOW', (2, 5), (3, 5), 1, colors.black),
+    ]))
+    story.append(attendance_table)
+    story.append(Spacer(1, 30))
+    
+    # === SIGNATURE SECTION ===
+    signature_data = [["", "HEAD TEACHER'S SIGNATURE"]]
+    signature_table = Table(signature_data, colWidths=[300, 210])
+    signature_table.setStyle(TableStyle([
+        ('FONTNAME', (1, 0), (1, 0), 'Helvetica'),
+        ('FONTSIZE', (1, 0), (1, 0), 9),
+        ('ALIGN', (1, 0), (1, 0), 'CENTER'),
+        ('LINEABOVE', (1, 0), (1, 0), 1, colors.black),
+        ('TOPPADDING', (1, 0), (1, 0), 5),
+    ]))
+    story.append(signature_table)
+    
+    # Build PDF
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
 def generate_professional_school_report(student_data, marks_data, aggregate_details, term="Term 3", exam_type="End of Term"):
     """
     Generate professional school report optimized for single A4 page with configurable school information
@@ -520,15 +816,26 @@ def generate_professional_school_report(student_data, marks_data, aggregate_deta
 def generate_school_report_pdf(student_data, marks_data, aggregate_details, term="Term 3", exam_type="End of Term"):
     """
     Generate professional school report with proper alignment and clean design
+    Uses specific template based on exam type
     """
-    # Use the new professional template
-    return generate_professional_school_report(
-        student_data, 
-        marks_data, 
-        aggregate_details, 
-        term, 
-        exam_type
-    )
+    # Use the End of Term template for End of Term exams
+    if exam_type == "End of Term":
+        return generate_end_of_term_report(
+            student_data, 
+            marks_data, 
+            aggregate_details, 
+            term, 
+            exam_type
+        )
+    else:
+        # Use the general professional template for other exam types
+        return generate_professional_school_report(
+            student_data, 
+            marks_data, 
+            aggregate_details, 
+            term, 
+            exam_type
+        )
 
 
 def generate_pdf_report(title, data, headers, filename_prefix="report"):
