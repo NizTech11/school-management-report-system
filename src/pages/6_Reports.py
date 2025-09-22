@@ -284,7 +284,14 @@ def generate_end_of_term_report(student_data, marks_data, aggregate_details, ter
     story.append(Spacer(1, 10))
     
     # === STUDENT INFORMATION ===
-    current_date = datetime.now().strftime("%d%s %B, %Y" % (datetime.now().day, "th" if 10<=datetime.now().day%100<=20 else {1:"st",2:"nd",3:"rd"}.get(datetime.now().day%10, "th")))
+    # Format date with ordinal suffix (1st, 2nd, 3rd, etc.)
+    day = datetime.now().day
+    if 10 <= day % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    
+    current_date = datetime.now().strftime(f"%d{suffix} %B, %Y")
     next_term_date = "6TH MAY, 2025"  # You can make this configurable
     
     student_info_data = [
